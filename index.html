@@ -289,7 +289,12 @@ function sync() {
     job = { action: "simpan", no: r.no, day: r.day, time: r.time, reseller: r.reseller, customer: r.customer, lines: r.lines, ong: r.ong, total: r.total, setor: r.setor, note: r.note || "", stamp: r.stamp };
     break;
   }
-  if (!job) { syncErr = ""; return; }
+  if (!job) {
+    syncErr = "";
+    var s0 = $("rk-status");
+    if (/^(Mengirim|Gagal)/.test(s0.textContent)) { s0.className = "status"; s0.textContent = "Semua catatan sudah masuk Google Sheet pusat."; }
+    return;
+  }
   job.pin = $("pin").value.trim();
   syncing = true;
   post(job).then(function () {
@@ -298,8 +303,12 @@ function sync() {
     syncErr = ""; syncing = false; saveLog(); renderRekap(); sync();
   }, function (e) {
     syncing = false;
-    syncErr = e && /PIN/.test(e.message) ? "PIN salah. Periksa PIN penjual." : "Belum tersambung ke pusat, akan dicoba lagi.";
+    var m = (e && e.message) || "";
+    syncErr = /PIN/.test(m) ? "PIN salah. Periksa PIN penjual." :
+      /fetch|network|load|json|token/i.test(m) ? "Skrip Google Sheet tidak bisa dihubungi. Cek deploy Web App: akses harus Anyone." :
+      "Ditolak skrip pusat: " + m + ".";
     renderRekap();
+    var st = $("rk-status"); st.className = "status bad"; st.textContent = "Gagal terkirim. " + syncErr;
   });
 }
 function rekapDay() { return $("rk-date").value || dayKey(new Date()); }
@@ -638,7 +647,11 @@ function init() {
     if (p) { say(p, true); return; }
     record(c); window.print();
   });
-  $("resync").addEventListener("click", sync);
+  $("resync").addEventListener("click", function () {
+    var st = $("rk-status"); st.className = "status";
+    st.textContent = $("pin").value.trim() ? "Mengirim ke pusat…" : "Isi PIN penjual dulu, lalu tekan lagi.";
+    if ($("pin").value.trim()) sync();
+  });
   window.addEventListener("online", sync);
   update(); sync();
 }
